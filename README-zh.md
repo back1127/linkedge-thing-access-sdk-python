@@ -1,7 +1,7 @@
 [English](README.md)|[中文](README-zh.md)
 
 # Link IoT Edge设备接入SDK Python版
-本项目提供一个python包，方便用户在[Link IoT Edge](https://help.aliyun.com/product/69083.html?spm=a2c4g.11186623.6.540.7c1b705eoBIMFA)上编写驱动以接入设备。
+本项目提供一个基于python 3.5.2的SDK包，方便用户在[Link IoT Edge](https://help.aliyun.com/product/69083.html?spm=a2c4g.11186623.6.540.7c1b705eoBIMFA)上基于SDK编写驱动接入设备。
 
 ## 快速开始 - HelloThing
 
@@ -26,15 +26,13 @@
 ## 使用
 首先，安装一个Link IoT Edge运行环境，可以参考[搭建边缘环境](https://help.aliyun.com/product/69083.html?spm=a2c4g.11186623.6.540.7c1b705eoBIMFA)。
 
-然后，实现设备接入。最常用的使用方式如下：
+然后，实现设备接入。参考如下：
 
 ``` python
 # -*- coding: utf-8 -*-
 import logging
 import lethingaccesssdk
 import time
-import os
-import json
 
 
 # User need to implement this class
@@ -56,24 +54,25 @@ class Temperature_device(lethingaccesssdk.ThingCallback):
       self.temperature = input_value["temperature"]
       return 0, {}
 
+device_obj_dict = {}
 # User define device behavior
-def device_behavior(client, app_callback):
+def device_behavior():
   while True:
     time.sleep(2)
-    if app_callback.temperature > 40:
-      client.reportEvent('high_temperature', {'temperature': app_callback.temperature})
-      client.reportProperties({'temperature': app_callback.temperature})
+    for client_handler in device_obj_dict:
+      app_callback = device_obj_dict.get(client_handler)
+      if app_callback.temperature > 40:
+        client_handler.reportEvent('high_temperature', {'temperature': app_callback.temperature})
+        client_handler.reportProperties({'temperature': app_callback.temperature})
 
-device_obj_dict = {}
 try:
-  driver_conf = json.loads(os.environ.get("FC_DRIVER_CONFIG"))
-  if "deviceList" in driver_conf and len(driver_conf["deviceList"]) > 0:
-    device_list_conf = driver_conf["deviceList"]
-    config = device_list_conf[0] # 第一个设备上线，如果该Driver下多个设备，请遍历list
+  driver_conf = lethingaccesssdk.getDriverConfig()
+  for config in driver_conf:
     app_callback = Temperature_device()
-    client = lethingaccesssdk.ThingAccessClient(config)
-    client.registerAndonline(app_callback)
-    device_behavior(client, app_callback)
+    client_handler = lethingaccesssdk.ThingAccessClient(config)
+    client_handler.registerAndonline(app_callback)
+    device_obj_dict[client_handler] = app_callback
+  device_behavior()
 except Exception as e:
   logging.error(e)
 
@@ -93,14 +92,17 @@ def handler(event, context):
 * ThingCallback#**[setProperties()](#setProperties)**
 * ThingCallback#**[getProperties()](#getProperties)**
 * ThingCallback#**[callService()](#callService)**
+* **[getDriverConfig()](#getDriverConfig)**
 * **[ThingAccessClient()](#thingaccessclient)**
 * ThingAccessClient#**[registerAndOnline()](#registerandonline)**
 * ThingAccessClient#**[reportEvent()](#reportevent)**
 * ThingAccessClient#**[reportProperties()](#reportproperties)**
+* ThingAccessClient#**[getConfig()](#getConfig)**
 * ThingAccessClient#**[getTsl()](#getTsl)**
 * ThingAccessClient#**[online()](#online)**
 * ThingAccessClient#**[offline()](#offline)**
 * ThingAccessClient#**[unregister()](#unregister)**
+* ThingAccessClient#**[cleanup()](#cleanup)**
 
 ---
 <a name="ThingCallback"></a>
@@ -140,6 +142,13 @@ def handler(event, context):
 	* output`dict`: 返回值. eg:{"key1": xxx, "key2": yyy, ...}。
 
 ---
+<a name="getDriverConfig"></a>
+### getDriverConfig()
+获取该驱动下所有设备配置信息。
+
+* 返回config信息`list`: 包括云端分配的productKey,deviceName和自定义配置信息, eg：{"productKey": "xxx", "deviceName": "yyy", "custom": "{\"key\":\"value\"}"}。
+
+---
 <a name="thingaccessclient"></a>
 ### ThingAccessClient(config)
 设备接入客户端类, 用户主要通过它上下线设备和主动上报设备属性或事件。
@@ -169,7 +178,14 @@ def handler(event, context):
 * properties`dict`: 上报的属性. eg:{"property1": xxx, "property2": yyy, ...}。
 
 ---
-<a name="gettsl"></a>
+<a name="getConfig"></a>
+### ThingAccessClient.getConfig()
+获取用户自定义配置。
+
+* 返回config信息 `dict`。
+
+---
+<a name="getTsl"></a>
 ### ThingAccessClient.getTsl()
 获取TSL(Thing Specification Language)字符串。
 
@@ -187,7 +203,11 @@ def handler(event, context):
 通知Link IoT Edge设备下线。
 
 ---
+<a name="cleanup"></a>
+### ThingAccessClient.cleanup()
+资源回收接口，您可以使用该接口回收您的资源。
 
+---
 <a name="unregister"></a>
 ### ThingAccessClient.unregister()
 移除设备和Link IoT Edge的绑定关系。通常无需调用。

@@ -2,8 +2,6 @@
 import logging
 import lethingaccesssdk
 import time
-import os
-import json
 
 
 # User need to implement this class
@@ -25,24 +23,25 @@ class Temperature_device(lethingaccesssdk.ThingCallback):
       self.temperature = input_value["temperature"]
       return 0, {}
 
+device_obj_dict = {}
 # User define device behavior
-def device_behavior(client, app_callback):
+def device_behavior():
   while True:
     time.sleep(2)
-    if app_callback.temperature > 40:
-      client.reportEvent('high_temperature', {'temperature': app_callback.temperature})
-      client.reportProperties({'temperature': app_callback.temperature})
+    for client_handler in device_obj_dict:
+      app_callback = device_obj_dict.get(client_handler)
+      if app_callback.temperature > 40:
+        client_handler.reportEvent('high_temperature', {'temperature': app_callback.temperature})
+        client_handler.reportProperties({'temperature': app_callback.temperature})
 
-device_obj_dict = {}
 try:
-  driver_conf = json.loads(os.environ.get("FC_DRIVER_CONFIG"))
-  if "deviceList" in driver_conf and len(driver_conf["deviceList"]) > 0:
-    device_list_conf = driver_conf["deviceList"]
-    config = device_list_conf[0]
+  driver_conf = lethingaccesssdk.getDriverConfig()
+  for config in driver_conf:
     app_callback = Temperature_device()
-    client = lethingaccesssdk.ThingAccessClient(config)
-    client.registerAndonline(app_callback)
-    device_behavior(client, app_callback)
+    client_handler = lethingaccesssdk.ThingAccessClient(config)
+    client_handler.registerAndonline(app_callback)
+    device_obj_dict[client_handler] = app_callback
+  device_behavior()
 except Exception as e:
   logging.error(e)
 

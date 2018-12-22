@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-import time  
-import lethingaccesssdk
-import os
-import json
 import logging
+import lethingaccesssdk
+import time
 
 
 class Light_Device(lethingaccesssdk.ThingCallback):
@@ -34,26 +32,24 @@ class Light_Device(lethingaccesssdk.ThingCallback):
       self.LightSwitch = input_value["LightSwitch"]
       return 0, {}
 
+device_obj_dict = {}
 # User define device behavior
-def device_behavior(client, light_callback):
-  lightswitch = light_callback.LightSwitch
+def device_behavior():
   while True:
     time.sleep(1)
-    if lightswitch != light_callback.LightSwitch:
-      lightswitch = light_callback.LightSwitch
+    for client_handler in device_obj_dict:
+      light_callback = device_obj_dict.get(client_handler)
       propertiesDict={"LightSwitch":light_callback.LightSwitch}
-      client.reportProperties(propertiesDict)
+      client_handler.reportProperties(propertiesDict)
 
-device_obj_dict = {}
 try:
-  driver_conf = json.loads(os.environ.get("FC_DRIVER_CONFIG"))
-  if "deviceList" in driver_conf and len(driver_conf["deviceList"]) > 0:
-    device_list_conf = driver_conf["deviceList"]
-    config = device_list_conf[0]
+  driver_conf = lethingaccesssdk.getDriverConfig()
+  for config in driver_conf:
     light_callback = Light_Device()
-    client = lethingaccesssdk.ThingAccessClient(config)
-    client.registerAndonline(light_callback)
-    device_behavior(client, light_callback)
+    client_handler = lethingaccesssdk.ThingAccessClient(config)
+    client_handler.registerAndonline(light_callback)
+    device_obj_dict[client_handler] = light_callback
+  device_behavior()
 except Exception as e:
   logging.error(e)
   

@@ -33,8 +33,6 @@ Then connect things to Link IoT Edge. The most common use is as follows:
 import logging
 import lethingaccesssdk
 import time
-import os
-import json
 
 
 # User need to implement this class
@@ -56,24 +54,25 @@ class Temperature_device(lethingaccesssdk.ThingCallback):
       self.temperature = input_value["temperature"]
       return 0, {}
 
+device_obj_dict = {}
 # User define device behavior
-def device_behavior(client, app_callback):
+def device_behavior():
   while True:
     time.sleep(2)
-    if app_callback.temperature > 40:
-      client.reportEvent('high_temperature', {'temperature': app_callback.temperature})
-      client.reportProperties({'temperature': app_callback.temperature})
+    for client_handler in device_obj_dict:
+      app_callback = device_obj_dict.get(client_handler)
+      if app_callback.temperature > 40:
+        client_handler.reportEvent('high_temperature', {'temperature': app_callback.temperature})
+        client_handler.reportProperties({'temperature': app_callback.temperature})
 
-device_obj_dict = {}
 try:
-  driver_conf = json.loads(os.environ.get("FC_DRIVER_CONFIG"))
-  if "deviceList" in driver_conf and len(driver_conf["deviceList"]) > 0:
-    device_list_conf = driver_conf["deviceList"]
-    config = device_list_conf[0]
+  driver_conf = lethingaccesssdk.getDriverConfig()
+  for config in driver_conf:
     app_callback = Temperature_device()
-    client = lethingaccesssdk.ThingAccessClient(config)
-    client.registerAndonline(app_callback)
-    device_behavior(client, app_callback)
+    client_handler = lethingaccesssdk.ThingAccessClient(config)
+    client_handler.registerAndonline(app_callback)
+    device_obj_dict[client_handler] = app_callback
+  device_behavior()
 except Exception as e:
   logging.error(e)
 
@@ -93,14 +92,17 @@ The main API references are as follows.
 * ThingCallback#**[setProperties()](#setProperties)**
 * ThingCallback#**[getProperties()](#getProperties)**
 * ThingCallback#**[callService()](#callService)**
+* **[getDriverConfig()](#getDriverConfig)**
 * **[ThingAccessClient()](#thingaccessclient)**
 * ThingAccessClient#**[registerAndOnline()](#registerandonline)**
 * ThingAccessClient#**[reportEvent()](#reportevent)**
 * ThingAccessClient#**[reportProperties()](#reportproperties)**
+* ThingAccessClient#**[getConfig()](#getConfig)**
 * ThingAccessClient#**[getTsl()](#getTsl)**
 * ThingAccessClient#**[online()](#online)**
 * ThingAccessClient#**[offline()](#offline)**
 * ThingAccessClient#**[unregister()](#unregister)**
+* ThingAccessClient#**[cleanup()](#cleanup)**
 
 ---
 <a name="ThingCallback"></a>
@@ -140,6 +142,13 @@ call device function.
 	* output`dict`: output values. eg:{"key1": 'xxx', "key2": 'yyy', ...}.
 
 ---
+<a name="getDriverConfig"></a>
+### getDriverConfig()
+return config information under the driver。
+
+* return config information`list`: include productKey, deviceName and configuration, eg：{"productKey": "xxx", "deviceName": "yyy", "custom": "{\"key\":\"value\"}"}。
+
+---
 <a name="thingaccessclient"></a>
 ### ThingAccessClient(config)
 Constructs a [ThingAccessClient](#thingaccessclient) with the specified config.
@@ -169,9 +178,14 @@ Reports the property values to Link IoT Edge platform.
 * properties`dict`: property values. eg:{"property1": 'xxx', "property2": 'yyy', ...}.
 
 ---
-<a name="gettsl"></a>
+<a name="getConfig"></a>
+### ThingAccessClient.getConfig()
+Returns the customer's configuration`dict`.
+
+---
+<a name="getTsl"></a>
 ### ThingAccessClient.getTsl()
-Returns the TSL(Thing Specification Language) string.
+Returns the TSL(Thing Specification Language) string`str`.
 
 ---
 
@@ -187,6 +201,11 @@ Informs Link IoT Edge platform that thing is disconnected.
 ---
 <a name="unregister"></a>
 ### ThingAccessClient.unregister()
+Removes the binding relationship between thing and Link IoT Edge platform. You usually don't call this function.
+
+---
+<a name="cleanup"></a>
+### ThingAccessClient.cleanup()
 Removes the binding relationship between thing and Link IoT Edge platform. You usually don't call this function.
 
 ## License
