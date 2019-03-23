@@ -9,19 +9,19 @@
 
 1. 复制`examples/HelloThing`文件夹到你的工作目录。
 2. 压缩`HelloThing`目录的内容为一个zip包，确保`index.py`在顶级目录下。
-3. 进入Link IoT Edge控制台，**分组管理**，**驱动管理**，**新建驱动**。
+3. 进入Link IoT Edge控制台，**边缘实例**，**驱动管理**，**新建驱动**。
 4. 语言类型选择*python3*。
 5. 驱动名称设置为`HelloThing`，并上传前面准备好的zip包。
 6. 创建一个产品。该产品包含一个`temperature`属性（int32类型）和一个`high_temperature`事件（int32类型和一个int32类型名为`temperature`的输入参数）。
 7. 创建一个名为`HelloThing`的上述产品的设备。
-8. 创建一个新的分组，并将Link IoT Edge网关设备加入到分组。
-9. 进入设备驱动页，将之前添加的驱动加入到分组。
-10. 将`HelloThing`设备添加到分组，并将`HelloThing`驱动作为其驱动。
+8. 创建一个新的实例，并将Link IoT Edge网关设备加入到实例。
+9. 进入设备驱动页，将之前添加的驱动加入到实例。
+10. 将`HelloThing`设备添加到实例，并将`HelloThing`驱动作为其驱动。
 11. 使用如下配置添加*消息路由*：
   * 消息来源：`HelloThing`设备
   * TopicFilter：属性
   * 消息目标：IoT Hub
-12. 部署分组。`HelloThing`设备将每隔2秒上报属性到云端，可在Link IoT Edge控制台设备运行状态页面查看。
+12. 部署实例。`HelloThing`设备将每隔2秒上报属性到云端，可在Link IoT Edge控制台设备运行状态页面查看。
 
 ## 使用
 首先，安装一个Link IoT Edge运行环境，可以参考[搭建边缘环境](https://help.aliyun.com/product/69083.html?spm=a2c4g.11186623.6.540.7c1b705eoBIMFA)。
@@ -31,54 +31,69 @@
 ``` python
 # -*- coding: utf-8 -*-
 import logging
-import lethingaccesssdk
 import time
+import lethingaccesssdk
+from threading import Timer
 
 
-# User need to implement this class
+# Base on device, User need to implement the getProperties, setProperties and callService function.
 class Temperature_device(lethingaccesssdk.ThingCallback):
-  def __init__(self):
-    self.temperature = 41
+    def __init__(self):
+        self.temperature = 41
+        self.humidity = 80
 
-  def callService(self, name, input_value):
-    return -1, {}
+    def getProperties(self, input_value):
+        '''
+        Get properties from the physical thing and return the result.
+        :param input_value:
+        :return:
+        '''
+        retDict = {
+            "temperature": 41,
+            "humidity": 80
+        }
+        return 0, retDict
 
-  def getProperties(self, input_value):
-    if input_value[0] == "temperature":
-      return 0, {input_value[0]: self.temperature}
-    else:
-      return -1, {}
+    def setProperties(self, input_value):
+        '''
+        Set properties to the physical thing and return the result.
+        :param input_value:
+        :return:
+        '''
+        return 0, {}
 
-  def setProperties(self, input_value):
-    if "temperature" in input_value:
-      self.temperature = input_value["temperature"]
-      return 0, {}
+    def callService(self, name, input_value):
+        '''
+        Call services on the physical thing and return the result.
+        :param name:
+        :param input_value:
+        :return:
+        '''
+        return 0, {}
 
-device_obj_dict = {}
-# User define device behavior
-def device_behavior():
-  while True:
-    time.sleep(2)
-    for client_handler in device_obj_dict:
-      app_callback = device_obj_dict.get(client_handler)
-      if app_callback.temperature > 40:
-        client_handler.reportEvent('high_temperature', {'temperature': app_callback.temperature})
-        client_handler.reportProperties({'temperature': app_callback.temperature})
+
+def thing_behavior(client, app_callback):
+    while True:
+        properties = {"temperature": app_callback.temperature,
+                      "humidity": app_callback.humidity}
+        client.reportProperties(properties)
+        client.reportEvent("high_temperature", {"temperature": 41})
+        time.sleep(2)
 
 try:
-  driver_conf = lethingaccesssdk.getDriverConfig()
-  for config in driver_conf:
-    app_callback = Temperature_device()
-    client_handler = lethingaccesssdk.ThingAccessClient(config)
-    client_handler.registerAndonline(app_callback)
-    device_obj_dict[client_handler] = app_callback
-  device_behavior()
+    infos = lethingaccesssdk.Config().getThingInfos()
+    for info in infos:
+        app_callback = Temperature_device()
+        client = lethingaccesssdk.ThingAccessClient(info)
+        client.registerAndOnline(app_callback)
+        t = Timer(2, thing_behavior, (client, app_callback))
+        t.start()
 except Exception as e:
-  logging.error(e)
+    logging.error(e)
 
-#don't remove this function
+# don't remove this function
 def handler(event, context):
-  return 'hello world'
+    return 'hello world'
 
 ```
 
@@ -88,21 +103,27 @@ def handler(event, context):
 
 主要的API参考文档如下：
 
+* **[getConfig()](#getConfig)**
 * **[ThingCallback()](#ThingCallback)**
 * ThingCallback#**[setProperties()](#setProperties)**
 * ThingCallback#**[getProperties()](#getProperties)**
 * ThingCallback#**[callService()](#callService)**
-* **[getDriverConfig()](#getDriverConfig)**
 * **[ThingAccessClient()](#thingaccessclient)**
 * ThingAccessClient#**[registerAndOnline()](#registerandonline)**
 * ThingAccessClient#**[reportEvent()](#reportevent)**
 * ThingAccessClient#**[reportProperties()](#reportproperties)**
-* ThingAccessClient#**[getConfig()](#getConfig)**
 * ThingAccessClient#**[getTsl()](#getTsl)**
 * ThingAccessClient#**[online()](#online)**
 * ThingAccessClient#**[offline()](#offline)**
 * ThingAccessClient#**[unregister()](#unregister)**
 * ThingAccessClient#**[cleanup()](#cleanup)**
+* **[Config()](#Config)**
+* Config#**[getThingInfos()](#getThingInfos)**
+
+---
+<a name="getConfig"></a>
+### getConfig()
+返回驱动相关配置。
 
 ---
 <a name="ThingCallback"></a>
@@ -142,13 +163,6 @@ def handler(event, context):
 	* output`dict`: 返回值. eg:{"key1": xxx, "key2": yyy, ...}。
 
 ---
-<a name="getDriverConfig"></a>
-### getDriverConfig()
-获取该驱动下所有设备配置信息。
-
-* 返回config信息`list`: 包括云端分配的productKey,deviceName和自定义配置信息, eg：{"productKey": "xxx", "deviceName": "yyy", "custom": "{\"key\":\"value\"}"}。
-
----
 <a name="thingaccessclient"></a>
 ### ThingAccessClient(config)
 设备接入客户端类, 用户主要通过它上下线设备和主动上报设备属性或事件。
@@ -178,13 +192,6 @@ def handler(event, context):
 * properties`dict`: 上报的属性. eg:{"property1": xxx, "property2": yyy, ...}。
 
 ---
-<a name="getConfig"></a>
-### ThingAccessClient.getConfig()
-获取用户自定义配置。
-
-* 返回config信息 `dict`。
-
----
 <a name="getTsl"></a>
 ### ThingAccessClient.getTsl()
 获取TSL(Thing Specification Language)字符串。
@@ -211,6 +218,21 @@ def handler(event, context):
 <a name="unregister"></a>
 ### ThingAccessClient.unregister()
 移除设备和Link IoT Edge的绑定关系。通常无需调用。
+
+---
+<a name="Config"></a>
+### Config()
+基于当前驱动配置字符串构造新的Config对象。
+
+---
+<a name="getThingInfos"></a>
+### Config. getThingInfos()
+返回所有设备相关信息，返回ThingInfo`List`。
+ThingInfo包括如下信息：
+
+* productKey `str `: 官网申请的productKey。
+* deviceName `str `: 设备名
+* custom`dict `:设备自定义配置
 
 
 ## 许可证

@@ -35,16 +35,12 @@ def device_behavior():
         client_handler.reportProperties({'temperature': app_callback.temperature})
 
 try:
-  driver_conf = lethingaccesssdk.getDriverConfig()
-  for config in driver_conf:
+  devices = lethingaccesssdk.getDeviceList()
+  for device in devices:
     app_callback = Temperature_device()
-    client_handler = lethingaccesssdk.ThingAccessClient(config)
+    client_handler = lethingaccesssdk.ThingAccessClient(device=device)
     client_handler.registerAndonline(app_callback)
     device_obj_dict[client_handler] = app_callback
   device_behavior()
 except Exception as e:
   logging.error(e)
-
-#don't remove this function
-def handler(event, context):
-  logger = logging.getLogger()
