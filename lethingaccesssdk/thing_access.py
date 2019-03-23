@@ -31,7 +31,7 @@ class ThingCallback(leda.BaseDeviceCallback):
                     ...
                 }
         '''
-        raise exception.LedaCallBackException("callService is empty")
+        raise Exception("callService is empty")
 
     def getProperties(self, input):
         '''
@@ -46,7 +46,7 @@ class ThingCallback(leda.BaseDeviceCallback):
                     ...
                 }
         '''
-        raise exception.LedaCallBackException("getProperties is empty")
+        raise Exception("getProperties is empty")
 
     def setProperties(self, input):
         '''
@@ -61,7 +61,7 @@ class ThingCallback(leda.BaseDeviceCallback):
             code[int]: 若获取成功则返回LEDA_SUCCESS, 失败则返回错误码
             output[dict]: 数据内容自定义，若无返回数据，则值空:{}
         '''
-        raise exception.LedaCallBackException("setProperties is empty")
+        raise Exception("setProperties is empty")
 
 class ThingAccessClient(object):
     '''
